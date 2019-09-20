@@ -1,7 +1,6 @@
 package cloudant
 
 import (
-	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -37,13 +36,6 @@ func RetrieveToken(apikey string) string {
 	response := request.SendRequest(url, `POST`, headers, []byte(encoded.Encode()))
 	value := gjson.Get(string(response.Body), "access_token")
 	return value.String()
-}
-
-func BasicAuth(user, pass string) string {
-	data := user + `:` + pass
-	sEnc := b64.StdEncoding.EncodeToString([]byte(data))
-	fmt.Println(`Token Created -> ` + sEnc)
-	return sEnc
 }
 
 // PingCloudant is delegated to verify that the Cloudant DB instance can be reached
@@ -127,7 +119,7 @@ func CreateDatabase(token, databaseName, url string, partitioned bool) bool {
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
-func RemoveDb(token, databaseName, url string) bool {
+func RemoveDB(token, databaseName, url string) bool {
 	url += `/` + databaseName
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
 	fmt.Println(request.SendRequest(url, `DELETE`, headers, nil))
@@ -136,25 +128,25 @@ func RemoveDb(token, databaseName, url string) bool {
 
 // ====== DOCUMENT API ======
 
-// InsertJson is delegated to insert a new document into the given DB
+// InsertJSON is delegated to insert a new document into the given DB
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // databaseName: DB that we want to retrieve the information
 // json: document to insert
-func InsertJson(token, url, databaseName, json string) bool {
+func InsertJSON(token, url, databaseName, json string) bool {
 	url += `/` + databaseName
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token, `Content-Type`, `application/json`)
 	response := request.SendRequest(url, `POST`, headers, []byte(json))
 	return response.StatusCode == 200
 }
 
-// InsertBulkJson is delegated to insert a list of document. It will concatenate all the json in input and
+// InsertBulkJSON is delegated to insert a list of document. It will concatenate all the json in input and
 // will insert all the document in a single request
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // databaseName: DB that we want to retrieve the information
 // jsons: list of document that we want to insert in bulk
-func InsertBulkJson(token, url, databaseName string, jsons []string) bool {
+func InsertBulkJSON(token, url, databaseName string, jsons []string) bool {
 	url += `/` + databaseName + `/_bulk_docs`
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token, `Content-Type`, `application/json`)
 
