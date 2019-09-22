@@ -1,0 +1,6 @@
+{
+    "Apikey": "",
+    "DBUrl": "https://$USERNAME.cloudantnosqldb.appdomain.cloud",
+    "Username": "",
+    "Token": ""
+}
