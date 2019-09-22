@@ -32,22 +32,37 @@ type Conf struct {
 	Username string
 	// URL of the Cloudant instance
 	DBUrl string
+	// Bearer token for authenticate the HTTP request
+	Token string
 }
 
 // =================== AUTHENTICATION METHOD ===================
 
-// RetrieveToken is delegated to retrieve the token for authenticate the HTTP request. It can be used for 3600 seconds
+// GenerateIBMToken is delegated to retrieve the token for authenticate the HTTP request. It can be used for 3600 seconds
+// https://cloud.ibm.com/docs/iam?topic=iam-iamtoken_from_apikey
 // The method use the apikey related to your Cloudant instance for authenticate into the IBM Cloud, and return back the token
 // that have to be used as Authorization token
 // NOTE: Every request have to be sent using the token retrieved by this method as a 'Bearer Authorization"
-func RetrieveToken(apikey string) string {
+func GenerateIBMToken(apikey string) string {
+	zap.S().Debug("GenerateIBMToken | START | Asking for a new token for APIKEY [", apikey, "] ...")
+
+	if strings.TrimSpace(apikey) == "" {
+		zap.S().Error("GenerateIBMToken | Empty apikey")
+		return ""
+	}
 	headers := request.CreateHeaderList(`Accept`, `application/json`, `Content-Type`, `application/x-www-form-urlencoded`)
 	encoded := url.Values{}
 	encoded.Set("grant_type", "urn:ibm:params:oauth:grant-type:apikey")
 	encoded.Set("apikey", apikey)
 	url := "https://iam.cloud.ibm.com/identity/token"
-	response := request.SendRequest(url, `POST`, headers, []byte(encoded.Encode()))
-	value := gjson.Get(string(response.Body), "access_token")
+	zap.S().Debug("GenerateIBMToken | Sending request to URL: [", url, "]")
+	resp := request.SendRequest(url, `POST`, headers, []byte(encoded.Encode()))
+	zap.S().Debug("GenerateIBMToken | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	if resp.StatusCode != 200 {
+		zap.S().Error("GenerateIBMToken | ERROR! Something went wrong ... | Body: [", string(resp.Body), "]")
+		return ""
+	}
+	value := gjson.Get(string(resp.Body), "access_token")
 	return value.String()
 }
 
@@ -77,7 +92,7 @@ func CreateDB(token, dbName, url string, partitioned bool) bool {
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
 	zap.S().Debug("CreateDB | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `PUT`, headers, nil)
-	zap.S().Debug("CreateDB | Request executed -> " + string(resp.Body))
+	zap.S().Debug("CreateDB | Request executed -> Data: [", string(resp.Body), "] | Status: [", resp.StatusCode, "]")
 	if resp.StatusCode == 201 || resp.StatusCode == 202 {
 		zap.S().Debug("CreateDB | DB ", dbName, " created succesully!")
 	} else if resp.StatusCode == 400 {
@@ -101,9 +116,9 @@ func GetDBDetails(token, url, dbName string) string {
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
 	zap.S().Debug("GetDBDetails | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `GET`, headers, nil)
+	zap.S().Error("GetDBDetails | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GetDBDetails | Unable to fetch response :/")
-		zap.S().Error("GetDBDetails | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 		return ""
 	}
 	zap.S().Debug("GetDBDetails | Request executed -> " + string(resp.Body))
@@ -123,12 +138,12 @@ func GetAllDBs(token, url string) []string {
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
 	zap.S().Debug("GetAllDBs | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `GET`, headers, nil)
+	zap.S().Error("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GetAllDBs | Unable to fetch response :/")
 		zap.S().Error("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 		return nil
 	}
-	zap.S().Debug("GetAllDBs | Request executed -> " + string(resp.Body))
 	var dbList []string
 	json.Unmarshal(resp.Body, &dbList)
 	fmt.Println("Database => ", dbList, ` | Len -> `, len(dbList))
@@ -141,11 +156,14 @@ func GetAllDBs(token, url string) []string {
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
 func GetAllDocuments(token, url, dbName string) string {
+	zap.S().Debug("GetAllDocuments | START | Retrieving all documents from DB [", dbName, "] ...")
 	url += `/` + dbName + `/_all_docs`
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
-	response := request.SendRequest(url, `GET`, headers, nil)
+	zap.S().Debug("GetAllDocuments | Sending request to URL: [", url, "]")
+	resp := request.SendRequest(url, `GET`, headers, nil)
+	zap.S().Error("GetAllDocuments | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	var docs string
-	json.Unmarshal(response.Body, &docs)
+	json.Unmarshal(resp.Body, &docs)
 	fmt.Println("Docs => ", docs)
 	return docs
 }
@@ -160,7 +178,7 @@ func RemoveDB(token, dbName, url string) bool {
 	url += `/` + dbName
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
 	resp := request.SendRequest(url, `DELETE`, headers, nil)
-	zap.S().Debug("RemoveDB | Request executed -> " + string(resp.Body))
+	zap.S().Error("RemoveDB | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode == 200 || resp.StatusCode == 202 {
 		zap.S().Debug("RemoveDB | DB ", dbName, " deleted succesully!")
 	} else if resp.StatusCode == 404 {
@@ -192,7 +210,7 @@ func InsertDocument(token, url, databaseName string, json []byte) bool {
 	return response.StatusCode == 200 || response.StatusCode == 202
 }
 
-// GetDocument is delegated to retrieve a specific document by the related `_id`
+// GetDocument is delegated to retrieve a specific document by the related mandatory `_id`
 // https://cloud.ibm.com/docs/services/Cloudant?topic=cloudant-documents#read-document
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
@@ -212,7 +230,7 @@ func GetDocument(token, url, databaseName, _id string) string {
 	return string(response.Body)
 }
 
-// UpdateDocument is delegated to retrieve a specific document by the related `_id`
+// UpdateDocument is delegated to update a specific document by the related mandatory '_id' parameter
 // https://cloud.ibm.com/docs/services/Cloudant?topic=cloudant-documents#update
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
