@@ -27,13 +27,23 @@ curl -k -X POST \
 // Conf is delegated to save the information related to the Cloudant account
 type Conf struct {
 	// Key used for retrieve the bearer token
-	Apikey string
+	Apikey string `json:"apikey"`
+	// Hostname of the cloudant instance
+	Host                 string `json:"host"`
+	IAMApikeyDescription string `json:"iam_apikey_description"`
+	IAMApikeyName        string `json:"iam_apikey_name"`
+	IAMRoleCrn           string `json:"iam_role_crn"`
+	IAMServiceidCrn      string `json:"iam_serviceid_crn"`
+	// Password for authenticate to the service
+	Password string `json:"password"`
+	// Port for reach the server
+	Port int `json:"port"`
+	// Url using BasicAuth
+	URL string `json:"url"`
 	// Username related to the Cloudant instance
-	Username string
-	// URL of the Cloudant instance
-	DBUrl string
-	// Bearer token for authenticate the HTTP request
-	Token string
+	Username string `json:"username"`
+	Token    string `json:"token,omitempty"`
+	DBUrl    string `json:"dbUrl,omitempty"`
 }
 
 // =================== AUTHENTICATION METHOD ===================
@@ -64,6 +74,37 @@ func GenerateIBMToken(apikey string) string {
 	}
 	value := gjson.Get(string(resp.Body), "access_token")
 	return value.String()
+}
+
+// GenerateCookie is delegated to inititialize a new session cookie based
+// https://cloud.ibm.com/docs/services/Cloudant?topic=cloudant-authentication#cookie-authentication
+// The method use the username and password for initialize a new Cloudant session for authenticate into IBM Cloud Cloudant instance
+// that have to be used as Authorization token
+// NOTE: Every request have to be sent using the token retrieved by this method as a 'Bearer Authorization"
+func GenerateCookie(_url, username, password string) string {
+	zap.S().Debug("GenerateCookie | START | Asking for a new token for SESSION COOKIE [", username, ":", password, "] ...")
+
+	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
+		zap.S().Error("GenerateCookie | Empty user or pass")
+		return ""
+	}
+	headers := request.CreateHeaderList(`Accept`, `application/json`, `Content-Type`, `application/x-www-form-urlencoded`)
+
+	_url += `/_session`
+	postData := url.QueryEscape(`name=` + username + `&password=` + password)
+	zap.S().Debug("GenerateCookie | Sending request to URL: [", _url, "] with body: [", postData, "]")
+	resp := request.SendRequest(_url, `POST`, headers, []byte(postData))
+	zap.S().Debug("GenerateCookie | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	if resp.StatusCode != 200 {
+		zap.S().Error("GenerateCookie | ERROR! Something went wrong ... | Body: [", string(resp.Body), "]")
+		return ""
+	}
+	zap.S().Debug("GenerateCookie | Headers ->", resp.Headers)
+	for i := range resp.Headers {
+		data := resp.Headers[i]
+		zap.S().Debug("GenerateCookie | Analyzing -> ", data)
+	}
+	return ""
 }
 
 // PingCloudant is delegated to verify that the Cloudant DB instance can be reached
