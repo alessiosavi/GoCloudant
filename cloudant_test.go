@@ -25,10 +25,19 @@ func TestGenerateIBMToken(t *testing.T) {
 	conf := initConf()
 	// loggerDebug("TestRetrieveToken | Retrieving token ...")
 	token := GenerateIBMToken(conf.Apikey)
+	t.Log("Token retrieved -> ", token)
 	if token == "" {
 		t.Fail()
 	}
 	if len(token) != 1106 {
+		t.Fail()
+	}
+}
+
+func TestGenerateCookie(t *testing.T) {
+	conf := initConf()
+	cookie := GenerateCookie(`https://`+conf.Host, conf.Username, conf.Password)
+	if cookie == "" {
 		t.Fail()
 	}
 }
@@ -38,24 +47,27 @@ func TestCreateDB(t *testing.T) {
 	dbName := `test_db`
 	if !CreateDB(conf.Token, dbName, conf.DBUrl, false) {
 		t.Fail()
-		return
 	}
 	if CreateDB(conf.Token, dbName, conf.DBUrl, false) {
 		t.Fail()
-		return
 	}
 }
 
 func TestRemoveDB(t *testing.T) {
+	// loggerMgr := initZapLog()
+	// zap.ReplaceGlobals(loggerMgr)
+	// defer loggerMgr.Sync() // flushes buffer, if any
+	// logger := loggerMgr.Sugar()
+	// logger.Debug("START")
 	conf := initConf()
 	dbName := `test_db`
 	if !RemoveDB(conf.Token, dbName, conf.DBUrl) {
+		t.Error("Unable to remove DB ", dbName)
 		t.Fail()
-		return
 	}
 	if RemoveDB(conf.Token, dbName, conf.DBUrl) {
+		t.Error("Extected error during removing!")
 		t.Fail()
-		return
 	}
 }
 
@@ -77,14 +89,6 @@ func initConf() Conf {
 		os.Exit(0)
 	}
 	return conf
-}
-
-func TestGenerateCookie(t *testing.T) {
-	conf := initConf()
-	cookie := GenerateCookie(`https://`+conf.Host, conf.Username, conf.Password)
-	if cookie == "" {
-		t.Fail()
-	}
 }
 
 // func TestGetAllDBs(t *testing.T) {

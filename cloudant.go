@@ -46,6 +46,17 @@ type Conf struct {
 	DBUrl    string `json:"dbUrl,omitempty"`
 }
 
+// Auth is delegated to store the necessary token for authenticate to the service
+// Cloudant HTTP call can be made using one of authentication credential
+type Auth struct {
+	// USER:PASSWORD encoded for basic auth (basic auth headers)
+	BasicAuth string
+	// Cookie for authenticate the session (cookie)
+	SessionCookie string
+	// IAM Token related to IBM Cloud service (bearer auth headers)
+	IAMToken string
+}
+
 // =================== AUTHENTICATION METHOD ===================
 
 // GenerateIBMToken is delegated to retrieve the token for authenticate the HTTP request. It can be used for 3600 seconds
@@ -142,7 +153,7 @@ func GenerateCookie(_url, username, password string) string {
 // host: URL related to the DB instance
 func PingCloudant(token, url string) bool {
 	url += `/`
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	fmt.Println(request.SendRequest(url, `GET`, headers, nil))
 	return true
 }
@@ -160,7 +171,7 @@ func CreateDB(token, dbName, url string, partitioned bool) bool {
 	// Check if DB alredy exists
 	zap.S().Debug("CreateDB | START | Creating a new DB [", dbName, "] ...")
 	url += `/` + dbName + `?partitioned=` + strconv.FormatBool(partitioned)
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	zap.S().Debug("CreateDB | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `PUT`, headers, nil)
 	zap.S().Debug("CreateDB | Request executed -> Data: [", string(resp.Body), "] | Status: [", resp.StatusCode, "]")
@@ -184,7 +195,7 @@ func CreateDB(token, dbName, url string, partitioned bool) bool {
 func GetDBDetails(token, url, dbName string) string {
 	zap.S().Debug("GetDBDetails | START | Retrieving information related to DB [", dbName, "] ...")
 	url += `/` + dbName
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	zap.S().Debug("GetDBDetails | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `GET`, headers, nil)
 	zap.S().Error("GetDBDetails | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
@@ -206,7 +217,7 @@ func GetDBDetails(token, url, dbName string) string {
 func GetAllDBs(token, url string) []string {
 	zap.S().Debug("GetAllDBs | START | Retrieving information related to all DBs ...")
 	url += `/_all_dbs`
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	zap.S().Debug("GetAllDBs | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `GET`, headers, nil)
 	zap.S().Error("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
@@ -229,7 +240,7 @@ func GetAllDBs(token, url string) []string {
 func GetAllDocuments(token, url, dbName string) string {
 	zap.S().Debug("GetAllDocuments | START | Retrieving all documents from DB [", dbName, "] ...")
 	url += `/` + dbName + `/_all_docs`
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	zap.S().Debug("GetAllDocuments | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `GET`, headers, nil)
 	zap.S().Error("GetAllDocuments | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
@@ -247,7 +258,7 @@ func GetAllDocuments(token, url, dbName string) string {
 func RemoveDB(token, dbName, url string) bool {
 	zap.S().Debug("RemoveDB | Removing DB [", dbName, "]")
 	url += `/` + dbName
-	headers := request.CreateHeaderList("Authorization", "Bearer "+token)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
 	resp := request.SendRequest(url, `DELETE`, headers, nil)
 	zap.S().Error("RemoveDB | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode == 200 || resp.StatusCode == 202 {

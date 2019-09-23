@@ -5,6 +5,8 @@ github.com/alessiosavi/Requests v0.0.0-20190920161225-dedb1d6bbca2 h1:XtWQ84IZVW
 github.com/alessiosavi/Requests v0.0.0-20190920161225-dedb1d6bbca2/go.mod h1:sCkIdnMroZcsg6yHswdlTAP+JGY9SOC1T1UVeVTyujw=
 github.com/alessiosavi/Requests v0.0.1 h1:n9XAAystQtiKvWWWpvYtfpgLxDlWRazd5bpiMTX8zmE=
 github.com/alessiosavi/Requests v0.0.1/go.mod h1:sCkIdnMroZcsg6yHswdlTAP+JGY9SOC1T1UVeVTyujw=
+github.com/alessiosavi/Requests v0.0.2-0.20190923135050-e7ca66bde738 h1:i6S/NvovO9o5iJOqvsE2pKbZnQ7RK6iNMGqf7YU24zY=
+github.com/alessiosavi/Requests v0.0.2-0.20190923135050-e7ca66bde738/go.mod h1:uMwn3HAtI2tBM46N0vMd0WLhAB9XDmQ7OvHgiFb94go=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
