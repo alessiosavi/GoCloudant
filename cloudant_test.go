@@ -51,12 +51,14 @@ func TestCreateDB(t *testing.T) {
 	// loggerDebug("TestCreateDB | Creating a new DB ...")
 	if !CreateDB(conf.Token, dbName, conf.DBUrl, false) {
 		t.Fail()
+		return
 	}
 	// loggerDebug("TestCreateDB | DB [", dbName, "] created succesfully")
 
 	// loggerDebug("TestCreateDB | Creating a new DB with same name")
 	if CreateDB(conf.Token, dbName, conf.DBUrl, false) {
 		t.Fail()
+		return
 	}
 	// loggerDebug("TestCreateDB | DB [", dbName, "] unable (succesfully) to create")
 }
@@ -75,12 +77,14 @@ func TestRemoveDB(t *testing.T) {
 	// loggerDebug("TestRemoveDB | Removing an existent DB ...")
 	if !RemoveDB(conf.Token, dbName, conf.DBUrl) {
 		t.Fail()
+		return
 	}
 	// loggerDebug("TestRemoveDB | DB [", dbName, "] removed succesfully")
 
 	// loggerDebug("TestRemoveDB | Trying to remove same DB ...")
 	if RemoveDB(conf.Token, dbName, conf.DBUrl) {
 		t.Fail()
+		return
 	}
 	// loggerDebug("TestRemoveDB | DB [", dbName, "] unable (succesfully) to remove")
 }
@@ -101,13 +105,6 @@ func TestGetAllDBs(t *testing.T) {
 		t.Fail()
 	}
 }
-func TestGetAllDocuments(t *testing.T) {}
-
-func TestInsertDocument(t *testing.T)     {}
-func TestGetDocument(t *testing.T)        {}
-func TestUpdateDocument(t *testing.T)     {}
-func TestDeleteDocument(t *testing.T)     {}
-func TestInsertBulkDocument(t *testing.T) {}
 
 func initZapLog() *zap.Logger {
 	config := zap.NewDevelopmentConfig()
@@ -121,10 +118,26 @@ func initZapLog() *zap.Logger {
 func initConf() Conf {
 	file, _ := ioutil.ReadFile("conf.json")
 	var conf Conf
+	fmt.Println(file)
 	err := json.Unmarshal([]byte(file), &conf)
 	if err != nil {
-		fmt.Println("ERROR! File not found ")
+		fmt.Println("ERROR! File not found ", err)
 		os.Exit(0)
 	}
+	fmt.Println(conf)
 	return conf
 }
+
+func TestGenerateCookie(t *testing.T) {
+
+	conf := initConf()
+
+	GenerateCookie(`https://`+conf.Host, conf.Username, conf.Password)
+}
+
+// func TestGetAllDocuments(t *testing.T) {}
+// func TestInsertDocument(t *testing.T)     {}
+// func TestGetDocument(t *testing.T)        {}
+// func TestUpdateDocument(t *testing.T)     {}
+// func TestDeleteDocument(t *testing.T)     {}
+// func TestInsertBulkDocument(t *testing.T) {}

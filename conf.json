@@ -1,6 +1,12 @@
 {
-    "Apikey": "",
-    "DBUrl": "https://$USERNAME.cloudantnosqldb.appdomain.cloud",
-    "Username": "",
-    "Token": ""
+    "apikey": "",
+    "host": "***********************************.cloudantnosqldb.appdomain.cloud",
+    "iam_apikey_description": "Auto generated apikey during resource-key operation for Instance - *********************",
+    "iam_apikey_name": "auto-generated-*************************",
+    "iam_role_crn": "*********************************",
+    "iam_serviceid_crn": "************",
+    "password": "******************",
+    "port": 443,
+    "url": "https://$USERNAME:$PASSWORD@$HOST",
+    "username": "**********************************"
 }
