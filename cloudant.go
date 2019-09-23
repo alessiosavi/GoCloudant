@@ -91,20 +91,50 @@ func GenerateCookie(_url, username, password string) string {
 	headers := request.CreateHeaderList(`Accept`, `application/json`, `Content-Type`, `application/x-www-form-urlencoded`)
 
 	_url += `/_session`
-	postData := url.QueryEscape(`name=` + username + `&password=` + password)
-	zap.S().Debug("GenerateCookie | Sending request to URL: [", _url, "] with body: [", postData, "]")
-	resp := request.SendRequest(_url, `POST`, headers, []byte(postData))
+	zap.S().Debug("GenerateCookie | Sending request to URL: [", _url, "] with body: [", `name=`+username+`&password=`+password, "]")
+	resp := request.SendRequest(_url, `POST`, headers, []byte(`name=`+username+`&password=`+password))
 	zap.S().Debug("GenerateCookie | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GenerateCookie | ERROR! Something went wrong ... | Body: [", string(resp.Body), "]")
 		return ""
 	}
 	zap.S().Debug("GenerateCookie | Headers ->", resp.Headers)
+	// Save the response cookie into a map
+	var cookies map[string]string
+	cookies = make(map[string]string)
 	for i := range resp.Headers {
 		data := resp.Headers[i]
 		zap.S().Debug("GenerateCookie | Analyzing -> ", data)
+		// Filter only the "Set-Cookie" headers
+		if strings.Contains(data, "Set-Cookie") {
+			// Extracting everything after "Set-Cookie:" until the end of the string
+			raw := data[len("Set-Cookie:"):len(data)]
+			zap.S().Debug("GenerateCookie | Extracting cookie from data | Raw: ", raw)
+			// Understand where is the '=' that split key and value
+			splitIndex := strings.Index(raw, "=")
+			// Extracting everything starting after "Set-Cookie:" until the end of first '='
+			key := strings.TrimSpace(raw[0:splitIndex])
+			// Extracting everything after the first "=" (+1) until the end of the string
+			value := strings.TrimSpace(raw[splitIndex+1 : len(raw)])
+			zap.S().Debug("GenerateCookie | Key: ", key)
+			zap.S().Debug("GenerateCookie | Value: ", value)
+			cookies[key] = value
+		}
 	}
-	return ""
+	zap.S().Debug("GenerateCookie | Found ", len(cookies), " cookies -> [", cookies, "]")
+	if len(cookies) == 0 {
+		zap.S().Error("GenerateCookie | Unable to retrieve cookie")
+		return ""
+	}
+	var value string
+	for key := range cookies {
+		if key == "AuthSession" {
+			zap.S().Debug("TestGenerateCookie | Auth cookie found!")
+			zap.S().Info("TestGenerateCookie | Key: ", key, " | Value: ", cookies[key])
+			value = cookies[key]
+		}
+	}
+	return value
 }
 
 // PingCloudant is delegated to verify that the Cloudant DB instance can be reached
