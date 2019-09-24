@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"encoding/base64"
+
 	utils "github.com/alessiosavi/GoUtils"
 	request "github.com/alessiosavi/Requests"
 	"github.com/tidwall/gjson"
@@ -38,12 +40,10 @@ type Conf struct {
 	Password string `json:"password"`
 	// Port for reach the server
 	Port int `json:"port"`
-	// Url using BasicAuth
+	// Url using BasicAuth, avoid using this url with basicauth for performance
 	URL string `json:"url"`
 	// Username related to the Cloudant instance
 	Username string `json:"username"`
-	Token    string `json:"token,omitempty"`
-	DBUrl    string `json:"dbUrl,omitempty"`
 }
 
 // Auth is delegated to store the necessary token for authenticate to the service
@@ -55,6 +55,57 @@ type Auth struct {
 	SessionCookie string
 	// IAM Token related to IBM Cloud service (bearer auth headers)
 	IAMToken string
+	// URL related to the Cloudant instance DB
+	DBUrl string
+}
+
+// InitAuth is delegated to initialize the Authentication details for authenticate every request.
+// The method will initialize the three method for authenticate the HTTP request:
+// - BasicAuth -> Create the header for authenticate the request
+// - SessionCookie -> Initialize a new session cookie-based and return the cookie for authenticate the request
+// - IAMToken -> Retrieve the IAM token that expire after 3600 seconds
+func (conf Conf) InitAuth() Auth {
+	var auth Auth
+	auth.DBUrl = `https://` + conf.Host
+	zap.S().Debug("InitAuth | Initializing authentication token")
+	if conf.Apikey == "" || conf.Username == "" || conf.Password == "" {
+		zap.S().Error("InitAuth | Unable to retreieve data from configuration -> ", conf)
+		return Auth{}
+	}
+	rawHeaders := conf.Username + `:` + conf.Password
+	basicAuth := `Authorization: Basic ` + base64.StdEncoding.EncodeToString([]byte(rawHeaders))
+	zap.S().Debug("InitAuth | BasicAuth headers ->  ", basicAuth)
+	auth.BasicAuth = basicAuth
+
+	auth.SessionCookie = conf.GenerateCookie(auth.DBUrl)
+	auth.IAMToken = conf.GenerateIBMToken()
+	zap.S().Debug("InitAuth | Auth struct configured! -> ", auth)
+	return auth
+}
+
+// GetSessionInfo is delegated to retrieve the information related to the current session
+func (auth Auth) GetSessionInfo() string {
+	zap.S().Debug("GetSessionInfo | START | Retrieving information related to the current session")
+	if strings.TrimSpace(auth.SessionCookie) == "" {
+		zap.S().Error("GetSessionInfo | Cookie not initialized")
+		return ""
+	}
+
+	var index int
+	index = strings.Index(auth.SessionCookie, "=")
+	key := auth.SessionCookie[0:index]
+	value := auth.SessionCookie[index+1 : len(auth.SessionCookie)]
+	zap.S().Debug("**Key -> " + key)
+	zap.S().Debug("**Value -> " + value)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, `Set-Cookie`, auth.SessionCookie)
+	URL := auth.DBUrl + `/_session`
+	resp := request.SendRequest(URL, `GET`, headers, nil)
+	zap.S().Debug("GetSessionInfo | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	if resp.StatusCode != 200 {
+		zap.S().Error("GetSessionInfo | ERROR! Something went wrong ... | Body: [", string(resp.Body), "]")
+		return ""
+	}
+	return string(resp.Body)
 }
 
 // =================== AUTHENTICATION METHOD ===================
@@ -64,17 +115,17 @@ type Auth struct {
 // The method use the apikey related to your Cloudant instance for authenticate into the IBM Cloud, and return back the token
 // that have to be used as Authorization token
 // NOTE: Every request have to be sent using the token retrieved by this method as a 'Bearer Authorization"
-func GenerateIBMToken(apikey string) string {
-	zap.S().Debug("GenerateIBMToken | START | Asking for a new token for APIKEY [", apikey, "] ...")
+func (conf Conf) GenerateIBMToken() string {
+	zap.S().Debug("GenerateIBMToken | START | Asking for a new token for APIKEY [", conf.Apikey, "] ...")
 
-	if strings.TrimSpace(apikey) == "" {
+	if strings.TrimSpace(conf.Apikey) == "" {
 		zap.S().Error("GenerateIBMToken | Empty apikey")
 		return ""
 	}
 	headers := request.CreateHeaderList(`Accept`, `application/json`, `Content-Type`, `application/x-www-form-urlencoded`)
 	encoded := url.Values{}
 	encoded.Set("grant_type", "urn:ibm:params:oauth:grant-type:apikey")
-	encoded.Set("apikey", apikey)
+	encoded.Set("apikey", conf.Apikey)
 	url := "https://iam.cloud.ibm.com/identity/token"
 	zap.S().Debug("GenerateIBMToken | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `POST`, headers, []byte(encoded.Encode()))
@@ -92,18 +143,18 @@ func GenerateIBMToken(apikey string) string {
 // The method use the username and password for initialize a new Cloudant session for authenticate into IBM Cloud Cloudant instance
 // that have to be used as Authorization token
 // NOTE: Every request have to be sent using the token retrieved by this method as a 'Bearer Authorization"
-func GenerateCookie(_url, username, password string) string {
-	zap.S().Debug("GenerateCookie | START | Asking for a new token for SESSION COOKIE [", username, ":", password, "] ...")
+func (conf Conf) GenerateCookie(URL string) string {
+	zap.S().Debug("GenerateCookie | START | Asking for a new token for SESSION COOKIE [", conf.Username, ":", conf.Password, "] ...")
 
-	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
+	if strings.TrimSpace(conf.Username) == "" || strings.TrimSpace(conf.Password) == "" {
 		zap.S().Error("GenerateCookie | Empty user or pass")
 		return ""
 	}
 	headers := request.CreateHeaderList(`Accept`, `application/json`, `Content-Type`, `application/x-www-form-urlencoded`)
 
-	_url += `/_session`
-	zap.S().Debug("GenerateCookie | Sending request to URL: [", _url, "] with body: [", `name=`+username+`&password=`+password, "]")
-	resp := request.SendRequest(_url, `POST`, headers, []byte(`name=`+username+`&password=`+password))
+	URL += `/_session`
+	zap.S().Debug("GenerateCookie | Sending request to URL: [", URL, "] with body: [", `name=`+conf.Username+`&password=`+conf.Password, "]")
+	resp := request.SendRequest(URL, `POST`, headers, []byte(`name=`+conf.Username+`&password=`+conf.Password))
 	zap.S().Debug("GenerateCookie | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GenerateCookie | ERROR! Something went wrong ... | Body: [", string(resp.Body), "]")
@@ -126,7 +177,8 @@ func GenerateCookie(_url, username, password string) string {
 			// Extracting everything starting after "Set-Cookie:" until the end of first '='
 			key := strings.TrimSpace(raw[0:splitIndex])
 			// Extracting everything after the first "=" (+1) until the end of the string
-			value := strings.TrimSpace(raw[splitIndex+1 : len(raw)])
+			value := `"` + strings.TrimSpace(raw[splitIndex+1:len(raw)])
+			value = strings.Replace(value, ";", `";`, 1)
 			zap.S().Debug("GenerateCookie | Key: ", key)
 			zap.S().Debug("GenerateCookie | Value: ", value)
 			cookies[key] = value
@@ -138,6 +190,7 @@ func GenerateCookie(_url, username, password string) string {
 		return ""
 	}
 	var value string
+	value = ""
 	for key := range cookies {
 		if key == "AuthSession" {
 			zap.S().Debug("TestGenerateCookie | Auth cookie found!")
@@ -145,16 +198,17 @@ func GenerateCookie(_url, username, password string) string {
 			value = cookies[key]
 		}
 	}
-	return value
+
+	return `AuthSession=` + value
 }
 
 // PingCloudant is delegated to verify that the Cloudant DB instance can be reached
 // token: bearer auth header retrieved from RetrieveToken()
 // host: URL related to the DB instance
-func PingCloudant(token, url string) bool {
-	url += `/`
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
-	fmt.Println(request.SendRequest(url, `GET`, headers, nil))
+func (auth Auth) PingCloudant() bool {
+	auth.DBUrl += `/`
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+auth.IAMToken)
+	fmt.Println(request.SendRequest(auth.DBUrl, `GET`, headers, nil))
 	return true
 }
 
@@ -167,11 +221,12 @@ func PingCloudant(token, url string) bool {
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
 // partitioned: boolean value for enabled partitioned option
-func CreateDB(token, dbName, url string, partitioned bool) bool {
+func (auth Auth) CreateDB(dbName string, partitioned bool) bool {
 	// Check if DB alredy exists
 	zap.S().Debug("CreateDB | START | Creating a new DB [", dbName, "] ...")
-	url += `/` + dbName + `?partitioned=` + strconv.FormatBool(partitioned)
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
+
+	url := auth.DBUrl + `/` + dbName + `?partitioned=` + strconv.FormatBool(partitioned)
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+auth.IAMToken)
 	zap.S().Debug("CreateDB | Sending request to URL: [", url, "]")
 	resp := request.SendRequest(url, `PUT`, headers, nil)
 	zap.S().Debug("CreateDB | Request executed -> Data: [", string(resp.Body), "] | Status: [", resp.StatusCode, "]")

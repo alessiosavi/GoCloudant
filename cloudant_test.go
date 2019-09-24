@@ -8,23 +8,39 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
-	zapcore "go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zapcore"
 )
 
-/*{"access_token": "eyJhbGciOiJIUz......sgrKIi8hdFs",
-  "refresh_token": "SPrXw5tBE3......KBQ+luWQVY=",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "expiration": 1473188353}*/
-func TestGenerateIBMToken(t *testing.T) {
+func TestInitAuth(t *testing.T) {
 	// loggerMgr := initZapLog()
 	// zap.ReplaceGlobals(loggerMgr)
 	// defer loggerMgr.Sync() // flushes buffer, if any
 	// logger := loggerMgr.Sugar()
 	// logger.Debug("START")
 	conf := initConf()
-	// loggerDebug("TestRetrieveToken | Retrieving token ...")
-	token := GenerateIBMToken(conf.Apikey)
+	auth := conf.InitAuth()
+	t.Log("BasicAuth " + auth.BasicAuth)
+	t.Log("SessioCookie " + auth.SessionCookie)
+	t.Log("IAMToken " + auth.IAMToken)
+	t.Log("URL ->" + auth.DBUrl)
+	if auth.BasicAuth == "" {
+		t.Fail()
+	}
+}
+
+func TestGetSessionInfo(t *testing.T) {
+	conf := initConf()
+	auth := conf.InitAuth()
+	data := auth.GetSessionInfo()
+	t.Log("SessionInfo -> ", data)
+	if data == "" {
+		t.Fail()
+	}
+}
+
+func TestGenerateIBMToken(t *testing.T) {
+	conf := initConf()
+	token := conf.GenerateIBMToken()
 	t.Log("Token retrieved -> ", token)
 	if token == "" {
 		t.Fail()
@@ -36,41 +52,49 @@ func TestGenerateIBMToken(t *testing.T) {
 
 func TestGenerateCookie(t *testing.T) {
 	conf := initConf()
-	cookie := GenerateCookie(`https://`+conf.Host, conf.Username, conf.Password)
+	cookie := conf.GenerateCookie(`https://` + conf.Host)
 	if cookie == "" {
 		t.Fail()
 	}
 }
 
+func TestPingCloudant(t *testing.T) {}
+
 func TestCreateDB(t *testing.T) {
 	conf := initConf()
+	auth := conf.InitAuth()
 	dbName := `test_db`
-	if !CreateDB(conf.Token, dbName, conf.DBUrl, false) {
+	if !auth.CreateDB(dbName, false) {
 		t.Fail()
 	}
-	if CreateDB(conf.Token, dbName, conf.DBUrl, false) {
+	if auth.CreateDB(dbName, false) {
 		t.Fail()
 	}
 }
 
+func TestGetDBDetails(t *testing.T)       {}
+func TestGetAllDBs(t *testing.T)          {}
+func TestGetAllDocuments(t *testing.T)    {}
+func TestTestRemoveDB(t *testing.T)       {}
+func TestInsertDocument(t *testing.T)     {}
+func TestGetDocument(t *testing.T)        {}
+func TestUpdateDocument(t *testing.T)     {}
+func TestDeleteDocument(t *testing.T)     {}
+func TestInsertBulkDocument(t *testing.T) {}
+
 func TestRemoveDB(t *testing.T) {
-	// loggerMgr := initZapLog()
-	// zap.ReplaceGlobals(loggerMgr)
-	// defer loggerMgr.Sync() // flushes buffer, if any
-	// logger := loggerMgr.Sugar()
-	// logger.Debug("START")
 	conf := initConf()
+	auth := conf.InitAuth()
 	dbName := `test_db`
-	if !RemoveDB(conf.Token, dbName, conf.DBUrl) {
+	if !RemoveDB(auth.IAMToken, dbName, auth.DBUrl) {
 		t.Error("Unable to remove DB ", dbName)
 		t.Fail()
 	}
-	if RemoveDB(conf.Token, dbName, conf.DBUrl) {
+	if RemoveDB(auth.IAMToken, dbName, auth.DBUrl) {
 		t.Error("Extected error during removing!")
 		t.Fail()
 	}
 }
-
 func initZapLog() *zap.Logger {
 	config := zap.NewDevelopmentConfig()
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
@@ -79,7 +103,6 @@ func initZapLog() *zap.Logger {
 	logger, _ := config.Build()
 	return logger
 }
-
 func initConf() Conf {
 	file, _ := ioutil.ReadFile("conf.json")
 	var conf Conf
@@ -90,11 +113,3 @@ func initConf() Conf {
 	}
 	return conf
 }
-
-// func TestGetAllDBs(t *testing.T) {
-// 	conf := initConf()
-// 	dbs := GetAllDBs(conf.Apikey, conf.DBUrl)
-// 	if dbs == nil {
-// 		t.Fail()
-// 	}
-// }
