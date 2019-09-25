@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
-
-	"encoding/base64"
 
 	utils "github.com/alessiosavi/GoUtils"
 	request "github.com/alessiosavi/Requests"
@@ -16,17 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-/*
-curl -k -X POST \
---header "Content-Type: application/x-www-form-urlencoded" \
---header "Accept: application/json" \
---data-urlencode "grant_type=urn:ibm:params:oauth:grant-type:apikey" \
---data-urlencode "apikey=*****************************" \
-"https://iam.cloud.ibm.com/identity/token"
-
-*/
-
-// Conf is delegated to save the information related to the Cloudant account
+// Conf struct is delegated to save the information related to the Cloudant account
 type Conf struct {
 	// Key used for retrieve the bearer token
 	Apikey string `json:"apikey"`
@@ -46,7 +35,7 @@ type Conf struct {
 	Username string `json:"username"`
 }
 
-// Auth is delegated to store the necessary token for authenticate to the service
+// Auth struct is delegated to store the necessary token for authenticate to the service
 // Cloudant HTTP call can be made using one of authentication credential
 type Auth struct {
 	// USER:PASSWORD encoded for basic auth (basic auth headers)
@@ -66,19 +55,26 @@ type Auth struct {
 // - IAMToken -> Retrieve the IAM token that expire after 3600 seconds
 func (conf Conf) InitAuth() Auth {
 	var auth Auth
+
+	if conf.Host == "" {
+		zap.S().Error("InitAuth | Host not provided!")
+		return auth
+	}
+
 	auth.DBUrl = `https://` + conf.Host
 	zap.S().Debug("InitAuth | Initializing authentication token")
 	if conf.Apikey == "" || conf.Username == "" || conf.Password == "" {
 		zap.S().Error("InitAuth | Unable to retreieve data from configuration -> ", conf)
-		return Auth{}
+		return auth
 	}
-	rawHeaders := conf.Username + `:` + conf.Password
-	basicAuth := `Authorization: Basic ` + base64.StdEncoding.EncodeToString([]byte(rawHeaders))
-	zap.S().Debug("InitAuth | BasicAuth headers ->  ", basicAuth)
-	auth.BasicAuth = basicAuth
 
-	auth.SessionCookie = conf.GenerateCookie(auth.DBUrl)
-	auth.IAMToken = conf.GenerateIBMToken()
+	// rawHeaders := conf.Username + `:` + conf.Password
+	// basicAuth := `Authorization: Basic ` + base64.StdEncoding.EncodeToString([]byte(rawHeaders))
+	// zap.S().Debug("InitAuth | BasicAuth headers ->  ", basicAuth)
+	// auth.BasicAuth = strings.TrimSpace(basicAuth)
+
+	auth.SessionCookie = strings.TrimSpace(conf.GenerateCookie(auth.DBUrl))
+	auth.IAMToken = strings.TrimSpace(conf.GenerateIBMToken())
 	zap.S().Debug("InitAuth | Auth struct configured! -> ", auth)
 	return auth
 }
@@ -91,12 +87,6 @@ func (auth Auth) GetSessionInfo() string {
 		return ""
 	}
 
-	var index int
-	index = strings.Index(auth.SessionCookie, "=")
-	key := auth.SessionCookie[0:index]
-	value := auth.SessionCookie[index+1 : len(auth.SessionCookie)]
-	zap.S().Debug("**Key -> " + key)
-	zap.S().Debug("**Value -> " + value)
 	headers := request.CreateHeaderList(`Accept`, `application/json`, `Set-Cookie`, auth.SessionCookie)
 	URL := auth.DBUrl + `/_session`
 	resp := request.SendRequest(URL, `GET`, headers, nil)
@@ -225,6 +215,16 @@ func (auth Auth) CreateDB(dbName string, partitioned bool) bool {
 	// Check if DB alredy exists
 	zap.S().Debug("CreateDB | START | Creating a new DB [", dbName, "] ...")
 
+	if auth.IAMToken == "" {
+		zap.S().Debug("CreateDB | IAM token not provided :/")
+		return false
+	}
+
+	if dbName == "" {
+		zap.S().Debug("CreateDB | DB name not provided :/")
+		return false
+	}
+
 	url := auth.DBUrl + `/` + dbName + `?partitioned=` + strconv.FormatBool(partitioned)
 	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+auth.IAMToken)
 	zap.S().Debug("CreateDB | Sending request to URL: [", url, "]")
@@ -247,13 +247,17 @@ func (auth Auth) CreateDB(dbName string, partitioned bool) bool {
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
-func GetDBDetails(token, url, dbName string) string {
+func (auth Auth) GetDBDetails(dbName string) string {
 	zap.S().Debug("GetDBDetails | START | Retrieving information related to DB [", dbName, "] ...")
-	url += `/` + dbName
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
-	zap.S().Debug("GetDBDetails | Sending request to URL: [", url, "]")
-	resp := request.SendRequest(url, `GET`, headers, nil)
-	zap.S().Error("GetDBDetails | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	if dbName == "" {
+		zap.S().Debug("GetDBDetails | DBName not provided!")
+		return ""
+	}
+	URL := auth.DBUrl + `/` + dbName
+	headers := request.CreateHeaderList(`Accept`, `application/json`, `Set-Cookie`, auth.SessionCookie)
+	zap.S().Debug("GetDBDetails | Sending request to URL: [", URL, "]")
+	resp := request.SendRequest(URL, `GET`, headers, nil)
+	zap.S().Debug("GetDBDetails | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GetDBDetails | Unable to fetch response :/")
 		return ""
@@ -269,13 +273,13 @@ func GetDBDetails(token, url, dbName string) string {
 // https://cloud.ibm.com/docs/services/Cloudant?topic=cloudant-databases#get-a-list-of-all-databases-in-the-account
 // token: bearer auth header retrieved from RetrieveToken()
 // host: URL related to the DB instance
-func GetAllDBs(token, url string) []string {
+func (auth Auth) GetAllDBs(url string) []string {
 	zap.S().Debug("GetAllDBs | START | Retrieving information related to all DBs ...")
-	url += `/_all_dbs`
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
-	zap.S().Debug("GetAllDBs | Sending request to URL: [", url, "]")
-	resp := request.SendRequest(url, `GET`, headers, nil)
-	zap.S().Error("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	URL := url + `/_all_dbs`
+	headers := request.CreateHeaderList(`Accept`, `application/json`, `Set-Cookie`, auth.SessionCookie)
+	zap.S().Debug("GetAllDBs | Sending request to URL: [", URL, "]")
+	resp := request.SendRequest(URL, `GET`, headers, nil)
+	zap.S().Debug("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode != 200 {
 		zap.S().Error("GetAllDBs | Unable to fetch response :/")
 		zap.S().Error("GetAllDBs | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
@@ -292,13 +296,13 @@ func GetAllDBs(token, url string) []string {
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
-func GetAllDocuments(token, url, dbName string) string {
+func (auth Auth) GetAllDocuments(dbName, additionalQuery string) string {
 	zap.S().Debug("GetAllDocuments | START | Retrieving all documents from DB [", dbName, "] ...")
-	url += `/` + dbName + `/_all_docs`
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
-	zap.S().Debug("GetAllDocuments | Sending request to URL: [", url, "]")
-	resp := request.SendRequest(url, `GET`, headers, nil)
-	zap.S().Error("GetAllDocuments | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	URL := auth.DBUrl + `/` + dbName + `/_all_docs?include_docs=true` + additionalQuery
+	headers := request.CreateHeaderList(`Accept`, `application/json`, `Set-Cookie`, auth.SessionCookie)
+	zap.S().Debug("GetAllDocuments | Sending request to URL: [", URL, "]")
+	resp := request.SendRequest(URL, `GET`, headers, nil)
+	zap.S().Debug("GetAllDocuments | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	var docs string
 	json.Unmarshal(resp.Body, &docs)
 	fmt.Println("Docs => ", docs)
@@ -310,12 +314,12 @@ func GetAllDocuments(token, url, dbName string) string {
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
-func RemoveDB(token, dbName, url string) bool {
+func (auth Auth) RemoveDB(dbName string) bool {
 	zap.S().Debug("RemoveDB | Removing DB [", dbName, "]")
-	url += `/` + dbName
-	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+token)
+	url := auth.DBUrl + "/" + dbName
+	headers := request.CreateHeaderList(`Accept`, `application/json`, "Authorization", "Bearer "+auth.IAMToken)
 	resp := request.SendRequest(url, `DELETE`, headers, nil)
-	zap.S().Error("RemoveDB | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
+	zap.S().Debug("RemoveDB | HTTP Code: ", resp.StatusCode, " | Body: ", string(resp.Body))
 	if resp.StatusCode == 200 || resp.StatusCode == 202 {
 		zap.S().Debug("RemoveDB | DB ", dbName, " deleted succesully!")
 	} else if resp.StatusCode == 404 {
@@ -420,14 +424,14 @@ func DeleteDocument(token, url, databaseName, _id, _rev string) string {
 // token: bearer auth header retrieved from RetrieveToken()
 // url: URL related to the DB instance
 // dbName: DB that we want to retrieve the information
-// jsons: list of document that we want to insert in bulk
-func InsertBulkDocument(token, url, dbName string, jsons []string) string {
-	zap.S().Debug("InsertBulkDocument | Inserting ", len(jsons), " in bulk into [", dbName, "] ...")
+// documents: list of document that we want to insert in bulk
+func InsertBulkDocument(token, url, dbName string, documents []string) string {
+	zap.S().Debug("InsertBulkDocument | Inserting ", len(documents), " in bulk into [", dbName, "] ...")
 	url += `/` + dbName + `/_bulk_docs`
 	headers := request.CreateHeaderList("Authorization", "Bearer "+token, `Content-Type`, `application/json`)
 	json := `{"docs":[`
-	for i := range jsons {
-		json = utils.Join(json, jsons[i], `,`)
+	for i := range documents {
+		json = utils.Join(json, documents[i], `,`)
 	}
 	json = strings.TrimSuffix(json, `,`)
 	json += `]}`
@@ -443,4 +447,16 @@ func InsertBulkDocument(token, url, dbName string, jsons []string) string {
 		zap.S().Debug("InsertBulkDocument | Documents inserted!")
 	}
 	return string(response.Body)
+}
+
+// ================= UTILS ==================
+func initConf() Conf {
+	file := utils.ReadFileContentC("conf.json")
+	var conf Conf
+	err := json.Unmarshal([]byte(file), &conf)
+	if err != nil {
+		fmt.Println("ERROR! File not found ", err)
+		os.Exit(0)
+	}
+	return conf
 }
