@@ -22,6 +22,12 @@ func TestInitAuth(t *testing.T) {
 	if auth.BasicAuth == "" {
 		t.Fail()
 	}
+	if auth.SessionCookie == "" {
+		t.Fail()
+	}
+	if auth.IAMToken == "" {
+		t.Fail()
+	}
 }
 
 func TestGetSessionInfo(t *testing.T) {

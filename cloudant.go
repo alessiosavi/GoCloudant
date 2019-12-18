@@ -1,6 +1,7 @@
 package cloudant
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -61,19 +62,20 @@ func (conf Conf) InitAuth() Auth {
 		return auth
 	}
 
-	auth.DBUrl = `https://` + conf.Host
-	zap.S().Debug("InitAuth | Initializing authentication token")
+	auth.DBUrl = strings.TrimSpace(`https://` + conf.Host)
 	if conf.Apikey == "" || conf.Username == "" || conf.Password == "" {
 		zap.S().Error("InitAuth | Unable to retreieve data from configuration -> ", conf)
 		return auth
 	}
+	zap.S().Debug("InitAuth | Initializing authentication token")
+	rawHeaders := conf.Username + `:` + conf.Password
+	basicAuth := `Authorization: Basic ` + base64.StdEncoding.EncodeToString([]byte(rawHeaders))
+	zap.S().Debug("InitAuth | BasicAuth headers ->  ", basicAuth)
+	auth.BasicAuth = strings.TrimSpace(basicAuth)
 
-	// rawHeaders := conf.Username + `:` + conf.Password
-	// basicAuth := `Authorization: Basic ` + base64.StdEncoding.EncodeToString([]byte(rawHeaders))
-	// zap.S().Debug("InitAuth | BasicAuth headers ->  ", basicAuth)
-	// auth.BasicAuth = strings.TrimSpace(basicAuth)
-
-	auth.SessionCookie = strings.TrimSpace(conf.GenerateCookie(auth.DBUrl))
+	zap.S().Debug("InitAuth | Initializing session cookie based")
+	auth.SessionCookie = conf.GenerateCookie(auth.DBUrl)
+	zap.S().Debug("InitAuth | Initializing IAM Token")
 	auth.IAMToken = strings.TrimSpace(conf.GenerateIBMToken())
 	zap.S().Debug("InitAuth | Auth struct configured! -> ", auth)
 	return auth

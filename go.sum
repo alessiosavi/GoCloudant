@@ -1,6 +1,8 @@
 github.com/alessiosavi/GoUtils v0.0.0-20190920113110-21b405044f55/go.mod h1:ibfZXqIO9WcoMoosLtvycrZ3JnMzuiKxYKOrgMky05I=
 github.com/alessiosavi/GoUtils v0.0.0-20190920143242-22ffcd3370ff h1:YRfi6Ul2PGqHz9AXQcYSuqc0Lqv+wqt5SfDwf9Zkfdk=
 github.com/alessiosavi/GoUtils v0.0.0-20190920143242-22ffcd3370ff/go.mod h1:sZKdRZJQY2dmpbEkDnSZ25wUFGcCSzeHSzGDGF4VzuE=
+github.com/alessiosavi/GoUtils v0.0.0-20190925203759-fc1160fa8814 h1:W01MxudYiU+AKMGh31qNxVCwYu+Xtl33C37Z/KQ2SbU=
+github.com/alessiosavi/GoUtils v0.0.0-20190925203759-fc1160fa8814/go.mod h1:sZKdRZJQY2dmpbEkDnSZ25wUFGcCSzeHSzGDGF4VzuE=
 github.com/alessiosavi/Requests v0.0.0-20190920161225-dedb1d6bbca2 h1:XtWQ84IZVWdmQopW5y2lbXiXMPzVFHRFKD7Dolxluhg=
 github.com/alessiosavi/Requests v0.0.0-20190920161225-dedb1d6bbca2/go.mod h1:sCkIdnMroZcsg6yHswdlTAP+JGY9SOC1T1UVeVTyujw=
 github.com/alessiosavi/Requests v0.0.1 h1:n9XAAystQtiKvWWWpvYtfpgLxDlWRazd5bpiMTX8zmE=
@@ -74,6 +76,8 @@ golang.org/x/sys v0.0.0-20190422165155-953cdadca894 h1:Cz4ceDQGXuKRnVBDTS23GTn/p
 golang.org/x/sys v0.0.0-20190422165155-953cdadca894/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20190922100055-0a153f010e69 h1:rOhMmluY6kLMhdnrivzec6lLgaVbMHMn2ISQXJeJ5EM=
 golang.org/x/sys v0.0.0-20190922100055-0a153f010e69/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20190924154521-2837fb4f24fe h1:6fAMxZRR6sl1Uq8U61gxU+kPTs2tR8uOySCbBP7BN/M=
+golang.org/x/sys v0.0.0-20190924154521-2837fb4f24fe/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/tools v0.0.0-20190311212946-11955173bddd h1:/e+gpKk9r3dJobndpTytxS2gOy6m5uvpg+ISQoEcusQ=
 golang.org/x/tools v0.0.0-20190311212946-11955173bddd/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
